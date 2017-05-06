@@ -1,0 +1,31 @@
+{
+  "name": "elio",
+  "version": "0.1.0",
+  "description": "Full-blown, fully open-source server-less infrastructure for Node.js that can run anywhere, anytime and at any scale.",
+  "main": "Elio.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/schahriar/elio.git"
+  },
+  "keywords": [
+    "server-less",
+    "infrastructure",
+    "oss",
+    "node",
+    "nodejs",
+    "elio",
+    "scale",
+    "deploy"
+  ],
+  "author": "Schahriar SaffarShargh <info@schahriar.com>",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/schahriar/elio/issues"
+  },
+  "homepage": "https://github.com/schahriar/elio#readme",
+  "dependencies": {
+  }
+}
