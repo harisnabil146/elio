@@ -4,11 +4,13 @@ const crypto = require('crypto');
 const anyBody = require('body/any');
 
 const AccessPoint = require('./lib/AccessPoint');
+const ClusterManager = require('./lib/ClusterManager');
 const REF = require('./lib/REF');
 
 class Elio {
   constructor(port) {
     this._internalSourceRegistry = new Map();
+    this._clusterManager = new ClusterManager(5, 300000);
     new AccessPoint(port, (...args) => this._AP_ROUTER(...args));
   }
 
@@ -69,8 +71,14 @@ class Elio {
     return this._internalSourceRegistry.delete(digest);
   }
 
-  _safe_deploy(ref, source, callback) {
-    const sandbox = {
+  _safe_deploy(digest, source, callback) {
+    this._clusterManager.broadcast({
+      type: 'REFDeploy',
+      digest,
+      source
+    });
+    setTimeout(callback, 1000);
+    /*const sandbox = {
       module: {},
       console: console
     };
@@ -79,12 +87,17 @@ class Elio {
     (function (setSource, callback) {
       setSource(ref.digest, sandbox.module.exports);
       callback(null, ref.digest);
-    })(this._setSource.bind(this), callback)
+    })(this._setSource.bind(this), callback)*/
   }
 
   invoke(digest, context, callback) {
-    if (this._hasSource(digest)) this._getSource(digest)(context || {}, callback);
-    else callback(new Error("Digest was not found"));
+    this._clusterManager.unicast({
+      type: 'REFInvoke',
+      digest,
+      context
+    }, null, callback);
+    /*if (this._hasSource(digest)) this._getSource(digest)(context || {}, callback);
+    else callback(new Error("Digest was not found"));*/
   }
 
   deploy(source, shards, callback) {
@@ -93,7 +106,7 @@ class Elio {
     ref.length = source.length;
 
     try {
-      this._safe_deploy(ref, source, callback);
+      this._safe_deploy(ref.digest, source, callback);
     } catch (error) {
       return callback(error);
     }
