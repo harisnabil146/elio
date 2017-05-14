@@ -1,6 +1,7 @@
 const vm = require('vm');
 const { runInNewContext } = vm;
 const crypto = require('crypto');
+const anyBody = require('body/any');
 
 const AccessPoint = require('./lib/AccessPoint');
 const REF = require('./lib/REF');
@@ -13,13 +14,18 @@ class Elio {
 
   _AP_ROUTER(action, callback) {
     switch (action.type) {
-      case 'EXECUTE_NO_PARAM':
-        if (this._hasSource(action.ref)) this._getSource(action.ref)(action.query, callback);
-        else callback(new Error("Failed to execute REF"));
+      case 'INVOKE_NO_PARAM':
+        this.invoke(action.ref, action.query, callback);
       break;
 
-      case 'EXECUTE_WITH_PARAMS':
-        /** @todo: Implement POST method body params */
+      case 'INVOKE_WITH_PARAMS':
+        anyBody(req, res, {}, (error, body) => {
+          if (error) return callback(new Error("Failed to parse body"));
+          else this.invoke(action.ref, {
+            query: action.query,
+            body: body
+          }, callback);
+        });
       break;
 
       case 'UNDEPLOY':
@@ -74,6 +80,11 @@ class Elio {
       setSource(ref.digest, sandbox.module.exports);
       callback(null, ref.digest);
     })(this._setSource.bind(this), callback)
+  }
+
+  invoke(digest, context, callback) {
+    if (this._hasSource(digest)) this._getSource(digest)(context || {}, callback);
+    else callback(new Error("Digest was not found"));
   }
 
   deploy(source, shards, callback) {

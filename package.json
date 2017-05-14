@@ -27,5 +27,6 @@
   },
   "homepage": "https://github.com/schahriar/elio#readme",
   "dependencies": {
+    "body": "^5.1.0"
   }
 }
