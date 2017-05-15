@@ -10,12 +10,26 @@ const REF = require('./lib/REF');
 class Elio {
   constructor(port) {
     this._internalSourceRegistry = new Map();
-    this._clusterManager = new ClusterManager(10, 300000);
-    //new AccessPoint(port, (...args) => this._AP_ROUTER(...args));
+    this._clusterManager = new ClusterManager(5, 300000);
+    new AccessPoint(port, (...args) => this._AP_ROUTER(...args));
   }
 
   _AP_ROUTER(action, callback) {
     switch (action.type) {
+      case 'INVOKE_NO_PARAM':
+        this.invoke(action.ref, action.query, callback);
+      break;
+
+      case 'INVOKE_WITH_PARAMS':
+        anyBody(req, res, {}, (error, body) => {
+          if (error) return callback(new Error("Failed to parse body"));
+          else this.invoke(action.ref, {
+            query: action.query,
+            body: body
+          }, callback);
+        });
+      break;
+
       case 'UNDEPLOY':
         this.undeploy(action.ref);
         callback(null, { status: 'OK' });
