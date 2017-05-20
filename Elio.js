@@ -72,12 +72,7 @@ class Elio {
   }
 
   _safe_deploy(digest, source, callback) {
-    this._clusterManager.broadcast({
-      type: 'REFDeploy',
-      digest,
-      source
-    });
-    setTimeout(callback, 1000);
+    this._clusterManager.allocate(digest, source, callback);
     /*const sandbox = {
       module: {},
       console: console
@@ -91,11 +86,11 @@ class Elio {
   }
 
   invoke(digest, context, callback) {
-    this._clusterManager.unicast({
+    this._clusterManager.anycast(digest, {
       type: 'REFInvoke',
       digest,
       context
-    }, null, callback);
+    }, callback);
     /*if (this._hasSource(digest)) this._getSource(digest)(context || {}, callback);
     else callback(new Error("Digest was not found"));*/
   }

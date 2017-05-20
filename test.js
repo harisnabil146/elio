@@ -5,6 +5,6 @@ const app = new Elio(8080);
 setTimeout(() => {
   app.deploy(fs.readFileSync('./examples/HelloWorld.js'), 0, (error, digest) => {
     if (error) throw error;
-    console.log({ digest });
+    console.log("Deployed", { digest });
   });
 }, 500);
