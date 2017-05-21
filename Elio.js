@@ -73,16 +73,6 @@ class Elio {
 
   _safe_deploy(digest, source, callback) {
     this._clusterManager.allocate(digest, source, callback);
-    /*const sandbox = {
-      module: {},
-      console: console
-    };
-    runInNewContext(source, sandbox);
-
-    (function (setSource, callback) {
-      setSource(ref.digest, sandbox.module.exports);
-      callback(null, ref.digest);
-    })(this._setSource.bind(this), callback)*/
   }
 
   invoke(digest, context, callback) {
@@ -91,8 +81,6 @@ class Elio {
       digest,
       context
     }, callback);
-    /*if (this._hasSource(digest)) this._getSource(digest)(context || {}, callback);
-    else callback(new Error("Digest was not found"));*/
   }
 
   deploy(source, shards, callback) {
