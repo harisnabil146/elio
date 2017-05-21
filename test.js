@@ -7,4 +7,8 @@ setTimeout(() => {
     if (error) throw error;
     console.log("Deployed", { digest });
   });
+  app.deploy(fs.readFileSync('./examples/ExceptionalFunction.js'), 0, (error, digest) => {
+    if (error) throw error;
+    console.log("Deployed", { digest });
+  });
 }, 500);
