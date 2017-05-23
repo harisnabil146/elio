@@ -55,22 +55,6 @@ class Elio {
     }
   }
 
-  _setSource(digest, source) {
-    this._internalSourceRegistry.set(digest, source);
-  }
-
-  _getSource(digest) {
-    return this._internalSourceRegistry.get(digest);
-  }
-
-  _hasSource(digest) {
-    return this._internalSourceRegistry.has(digest);
-  }
-
-  _removeSource(digest) {
-    return this._internalSourceRegistry.delete(digest);
-  }
-
   _safe_deploy(digest, source, callback) {
     this._clusterManager.allocate(digest, source, callback);
   }
@@ -97,7 +81,7 @@ class Elio {
   }
 
   undeploy(digest) {
-    this._removeSource(digest);
+    /** @todo: Implement Undeploy */
   }
 }
 
