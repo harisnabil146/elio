@@ -81,7 +81,7 @@ class Elio {
   }
 
   undeploy(digest) {
-    /** @todo: Implement Undeploy */
+    this._clusterManager.deallocate(digest, source, callback);
   }
 }
 
