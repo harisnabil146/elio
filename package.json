@@ -4,7 +4,7 @@
   "description": "Full-blown, fully open-source server-less infrastructure for Node.js that can run anywhere, anytime and at any scale.",
   "main": "Elio.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "istanbul cover node_modules/mocha/bin/_mocha -- -R spec test/main.js"
   },
   "repository": {
     "type": "git",
@@ -29,5 +29,10 @@
   "dependencies": {
     "body": "^5.1.0",
     "shortid": "^2.2.8"
+  },
+  "devDependencies": {
+    "chai": "^4.0.2",
+    "istanbul": "^0.4.5",
+    "mocha": "^3.4.2"
   }
 }
