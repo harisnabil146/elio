@@ -105,8 +105,8 @@ class Elio extends EventEmitter {
     /** @todo: Pipe stream to end node or datastore */
   }
 
-  undeploy(digest) {
-    this._clusterManager.deallocate(digest, source, callback);
+  undeploy(digest, callback) {
+    this._clusterManager.deallocate(digest, callback);
   }
 
   listDeployments() {
