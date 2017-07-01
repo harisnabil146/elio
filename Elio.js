@@ -21,6 +21,10 @@ class Elio extends EventEmitter {
     this._internalSourceRegistry = new Map();
     this._clusterManager = new ClusterManager(maxNodes || 5, ttl || 300000);
     this._clusterManager.once('online', () => this._completeCriteria('nodesReady'));
+    this._resolvers = {
+      HMAC_SECRET: (identity, callback) => callback(new Error("No Hmac Resolver was registered")),
+      ENCRYPTION: (identity, callback) => callback(new Error("No Encryption Resolver was registered"))
+    };
     new AccessPoint(port, (...args) => this._AP_ROUTER(...args), () => this._completeCriteria('apReady'));
   }
 
@@ -62,11 +66,12 @@ class Elio extends EventEmitter {
 
       case 'DEPLOY':
         if (action.stream) {
-          let buffer = '';
-          action.stream.on('data', (chunk) => buffer += chunk);
+          let source = '';
+
+          action.stream.on('data', (chunk) => source += chunk);
           action.stream.on('end', () => {
-            this.deploy(buffer, 1, (error, digest) => {
-              if (error) return callback(new Error("Failed to deploy"));
+            this.deploy(action.headers['x-identity'], source, action.headers['authorization'], (error, digest) => {
+              if (error) return callback(error);
               callback(null, { status: 'OK', digest });
             });
           });
@@ -80,8 +85,17 @@ class Elio extends EventEmitter {
     }
   }
 
-  _safe_deploy(digest, source, callback) {
+  setHmacResolver(handler) {
+    this._resolvers.HMAC_SECRET = handler; 
+  }
+
+  setEncryptionResolver(handler) {
+    this._resolvers.ENCRYPTION = handler;
+  }
+
+  unsafe_deploy(digest, source, callback) {
     this._clusterManager.allocate(digest, source, callback);
+    this.emit('deploy', digest, source);
   }
 
   invoke(digest, context, callback) {
@@ -92,21 +106,33 @@ class Elio extends EventEmitter {
     }, callback);
   }
 
-  deploy(source, callback) {
-    let ref = new REF();
-    ref.digest = crypto.createHash('sha1').update(source).digest('hex');
-    ref.length = source.length;
+  deploy(identity, encrypted_source, hmac_header, callback) {
+    // Verify Message Authentication Code (MAC -> SHA256:Hex)
+    this._resolvers.HMAC_SECRET(identity, (error, secret) => {
+      if (error) return callback(error);
+      const hmac = crypto.createHmac('sha256', secret);
+      const digest = hmac.update(encrypted_source).digest('hex');
 
-    try {
-      this._safe_deploy(ref.digest, source, callback);
-    } catch (error) {
-      return callback(error);
-    }
-    /** @todo: Pipe stream to end node or datastore */
+      if (digest !== hmac_header) return callback(new Error("Bad HMAC header"));
+
+      // Decrypt source based on given Encryption key
+      this._resolvers.ENCRYPTION(identity, encrypted_source, (error, source) => {
+        if (error) return callback(error);
+        const ref = new REF(digest, source.length);
+
+        try {
+          // Deploy Source
+          this.unsafe_deploy(ref.digest, source, (error) => callback(error, digest));
+        } catch (error) {
+          return callback(error);
+        }
+      });
+    });
   }
 
   undeploy(digest, callback) {
     this._clusterManager.deallocate(digest, callback);
+    this.emit('undeploy', digest, source);
   }
 
   listDeployments() {
