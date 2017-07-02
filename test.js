@@ -4,7 +4,7 @@ const service = new Elio({
   maxNodes: 3
 });
 
-service.setHmacResolver((identity, callback) => {
+service.setSecretResolver((identity, callback) => {
   if (identity === 'test') callback(null, 'test');
   else return callback(new Error("Bad HMAC"));
 });

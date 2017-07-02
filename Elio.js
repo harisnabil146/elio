@@ -85,7 +85,7 @@ class Elio extends EventEmitter {
     }
   }
 
-  setHmacResolver(handler) {
+  setSecretResolver(handler) {
     this._resolvers.HMAC_SECRET = handler; 
   }
 
@@ -132,7 +132,7 @@ class Elio extends EventEmitter {
 
   undeploy(digest, callback) {
     this._clusterManager.deallocate(digest, callback);
-    this.emit('undeploy', digest, source);
+    this.emit('undeploy', digest);
   }
 
   listDeployments() {

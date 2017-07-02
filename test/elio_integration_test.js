@@ -1,5 +1,6 @@
 const Elio = require('../Elio');
 const request = require('request');
+const crypto = require('crypto');
 
 const GET_JSON_FROM_RESPONSE = (response, callback) => {
   let body = "";
@@ -17,12 +18,22 @@ const GET_JSON_FROM_RESPONSE = (response, callback) => {
 describe('Elio Integration Test Suite', function () {
   const port = 8090;
   let elio, f1_digest;
+  const createHMAC = (encrypted_source) => crypto.createHmac('sha256', 'test_secret').update(encrypted_source).digest('hex');
 
   before(function (done) {
     elio = new Elio({
       port,
       maxNodes: 3,
       ttl: 30000
+    });
+
+    elio.setSecretResolver((identity, callback) => {
+      if (identity === 'test') callback(null, 'test_secret');
+      else return callback(new Error("Bad HMAC"));
+    });
+
+    elio.setEncryptionResolver((identity, encryptedSource, callback) => {
+      callback(null, encryptedSource);
     });
 
     elio.on('ready', done);
@@ -36,17 +47,15 @@ describe('Elio Integration Test Suite', function () {
   });
 
   it('should deploy new function', function (done) {
-    elio.deploy(`
+    const source = `
       module.exports = (context, callback) => callback(null, {
         result: context.name || "echo"
       });
-    `, (error, digest) => {
+    `;
+    elio.deploy('test', source, createHMAC(source), (error, digest) => {
       expect(error).to.be.null;
-      expect(digest).to.be.an('array');
-      expect(digest).to.have.length.gte(1);
-      expect(digest[0]).to.be.a('string');
-      expect(digest[0]).to.have.length.gte(1);
-      f1_digest = digest[0];
+      expect(digest).to.be.equal(createHMAC(source));
+      f1_digest = digest;
       done();
     });
   });
