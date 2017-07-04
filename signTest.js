@@ -26,14 +26,14 @@ htco+18yl53UQyw20xlol1qrbJFINao9Bj8J7U+WTpzK1Xrxn3ylYCXnbAVBOxAC
 xGqBnXDLJxwBww0A/wIDAQAB
 -----END PUBLIC KEY-----`;
 
-const source = Buffer.from(JSON.stringify({
-  digest: "1234",
-  source: `
-    module.exports = (context, callback) => callback(null, "Hello World");
-  `
-}));
+const source = Buffer.from(`
+console.log("HELLO WORLD V2");
 
-const packet = crypto.privateEncrypt(privateKey, source);
+module.exports = (context, callback) => {
+  callback(null, { message: "Test", test: new Error("Hello"), no: parseFloat('22.55') });
+};`);
 
-console.log(crypto.publicDecrypt(publicKey, packet).toString('utf8'));
-console.log("HMAC", hmac.update(packet).digest('hex'));
+const sign = crypto.createSign('RSA-SHA256');
+sign.update(source);
+
+console.log('SIGNATURE', sign.sign(privateKey).toString('hex'));

@@ -22,8 +22,7 @@ class Elio extends EventEmitter {
     this._clusterManager = new ClusterManager(maxNodes || 5, ttl || 300000);
     this._clusterManager.once('online', () => this._completeCriteria('nodesReady'));
     this._resolvers = {
-      HMAC_SECRET: (identity, callback) => callback(new Error("No Hmac Resolver was registered")),
-      ENCRYPTION: (identity, callback) => callback(new Error("No Encryption Resolver was registered"))
+      IDENTITY: (identity, callback) => callback(new Error("No Identity Resolver was registered"))
     };
     new AccessPoint(port, (...args) => this._AP_ROUTER(...args), () => this._completeCriteria('apReady'));
   }
@@ -85,12 +84,8 @@ class Elio extends EventEmitter {
     }
   }
 
-  setSecretResolver(handler) {
-    this._resolvers.HMAC_SECRET = handler; 
-  }
-
-  setEncryptionResolver(handler) {
-    this._resolvers.ENCRYPTION = handler;
+  setIdentityResolver(handler) {
+    this._resolvers.IDENTITY = handler; 
   }
 
   unsafe_deploy(digest, source, callback) {
@@ -106,27 +101,24 @@ class Elio extends EventEmitter {
     }, callback);
   }
 
-  deploy(identity, encrypted_source, hmac_header, callback) {
-    // Verify Message Authentication Code (MAC -> SHA256:Hex)
-    this._resolvers.HMAC_SECRET(identity, (error, secret) => {
+  deploy(identity, source, signature, callback) {
+    // Verify Message Signature (RSA-SHA256)
+    this._resolvers.IDENTITY(identity, (error, publicKey) => {
       if (error) return callback(error);
-      const hmac = crypto.createHmac('sha256', secret);
-      const digest = hmac.update(encrypted_source).digest('hex');
+      if (!publicKey || !Buffer.isBuffer(publicKey)) return callback(new Error("Invalid identity"));
 
-      if (digest !== hmac_header) return callback(new Error("Bad HMAC header"));
+      const RSA_SHA_256 = crypto.createVerify('RSA-SHA256');
+      RSA_SHA_256.update(source);
 
-      // Decrypt source based on given Encryption key
-      this._resolvers.ENCRYPTION(identity, encrypted_source, (error, source) => {
-        if (error) return callback(error);
-        const ref = new REF(digest, source.length);
-
-        try {
-          // Deploy Source
-          this.unsafe_deploy(ref.digest, source, (error) => callback(error, digest));
-        } catch (error) {
-          return callback(error);
-        }
-      });
+      if (RSA_SHA_256.verify(publicKey, signature, 'hex')) {
+        const ref = new REF(signature, source.length);
+        // Override publicKey Buffer in memory
+        publicKey.fill && publicKey.fill('0');
+        // Deploy Source
+        this.unsafe_deploy(ref.digest, source, (error) => callback(error, signature));
+      } else {
+        return callback(new Error("Bad signature"));
+      }
     });
   }
 
