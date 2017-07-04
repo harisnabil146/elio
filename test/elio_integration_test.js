@@ -90,7 +90,7 @@ describe('Elio Integration Test Suite', function () {
   });
 
   it('should invoke a function through access point', function (done) {
-    request(`http://localhost:${port}/${f1_digest}`).on('response', function (response, body) {
+    request(`http://localhost:${port}/source/${f1_digest}`).on('response', function (response, body) {
       expect(response.statusCode).to.be.equal(200);
       GET_JSON_FROM_RESPONSE(response, (error, body) => {
         expect(body).to.be.eql({
@@ -123,7 +123,7 @@ describe('Elio Integration Test Suite', function () {
   });
 
   it('should return correct http code when invoking deleted or unknown digests', function (done) {
-    request(`http://localhost:${port}/${f1_digest}`).on('response', function (response, body) {
+    request(`http://localhost:${port}/source/${f1_digest}`).on('response', function (response, body) {
       expect(response.statusCode).to.be.equal(404);
       done();
     }).on('error', function (error) {
