@@ -19,6 +19,7 @@ class Elio extends EventEmitter {
     };
     this._hasBeenReadyBefore = false;
     this._internalSourceRegistry = new Map();
+    this._internalRoutingMap = new Map();
     this._clusterManager = new ClusterManager(maxNodes || 5, ttl || 300000);
     this._clusterManager.once('online', () => this._completeCriteria('nodesReady'));
     this._resolvers = {
@@ -45,10 +46,15 @@ class Elio extends EventEmitter {
   _AP_ROUTER(action, callback) {
     switch (action.type) {
       case 'INVOKE_NO_PARAM':
-        this.invoke(action.ref, action.query, callback);
+        if (action.isRouted) {
+          this.invoke(this._internalRoutingMap.get(action.ref), action.query, callback);
+        } else {
+          this.invoke(action.ref, action.query, callback);
+        }
       break;
 
-      case 'INVOKE_WITH_PARAMS':
+      /** @todo: Implement routing */
+      /*case 'INVOKE_WITH_PARAMS':
         anyBody(req, res, {}, (error, body) => {
           if (error) return callback(new Error("Failed to parse body"));
           else this.invoke(action.ref, {
@@ -56,11 +62,10 @@ class Elio extends EventEmitter {
             body: body
           }, callback);
         });
-      break;
+      break;*/
 
       case 'UNDEPLOY':
-        this.undeploy(action.ref);
-        callback(null, { status: 'OK' });
+        this.undeploy(action.ref, callback);
       break;
 
       case 'DEPLOY':
@@ -78,6 +83,15 @@ class Elio extends EventEmitter {
           return callback(new Error("No body was received"));
         }
       break;
+
+      case 'ROUTE_DEPLOY':
+        this._internalRoutingMap.set(action.route, action.digest);
+      return callback(null, { status: 'OK' });
+
+      case 'ROUTE_UNDEPLOY':
+      return callback(null, {
+        deleted: this._internalRoutingMap.delete(action.route)
+      });
 
       default:
       return callback(new Error("Failed to identity request type."));
@@ -101,6 +115,10 @@ class Elio extends EventEmitter {
     }, callback);
   }
 
+  invokeRoute(route, context, callback) {
+    this.invoke(this._internalRoutingMap.get(route), context, callback);
+  }
+
   deploy(identity, source, signature, callback) {
     // Verify Message Signature (RSA-SHA256)
     this._resolvers.IDENTITY(identity, (error, publicKey) => {
@@ -118,6 +136,27 @@ class Elio extends EventEmitter {
         this.unsafe_deploy(ref.digest, source, (error) => callback(error, signature));
       } else {
         return callback(new Error("Bad signature"));
+      }
+    });
+  }
+
+  assignRoute(route, digest) {
+    this._internalRoutingMap.set(route, digest);
+  }
+
+  removeRoute(route) {
+    this._internalRoutingMap.delete(route);
+  }
+
+  getRoute(route) {
+    return this._internalRoutingMap.get(route);
+  }
+
+  listRoutes() {
+    return Array.from(this._internalRoutingMap).map((a) => {
+      return {
+        route: a[0],
+        digest: a[1]
       }
     });
   }

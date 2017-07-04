@@ -3,7 +3,7 @@ const request = require('request');
 const crypto = require('crypto');
 
 const privateKey =
-  `-----BEGIN RSA PRIVATE KEY-----
+`-----BEGIN RSA PRIVATE KEY-----
 MIICXAIBAAKBgQCrGNI30r9R9XDZw6GuVrVxLgd+Em96NEwkQW53ihfU9/vbzajL
 pzIanVxF7fMIvR21PrJk4SUYT9jIL1qkLZ2YSR0Fhtco+18yl53UQyw20xlol1qr
 bJFINao9Bj8J7U+WTpzK1Xrxn3ylYCXnbAVBOxACxGqBnXDLJxwBww0A/wIDAQAB
@@ -19,8 +19,8 @@ HoJpuh8bhrRKSsfYFyECQC95Obs1Nt/Rgfodm0Sf/ZbFwHqKJRXs1sGbW2JnrQvL
 tZwMednOBZB58DJC9zUTgWU9+q4qQqKUBtW9xDzE26o=
 -----END RSA PRIVATE KEY-----`;
 
-const publicKey =
-  `-----BEGIN PUBLIC KEY-----
+const publicKey = 
+`-----BEGIN PUBLIC KEY-----
 MIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQCrGNI30r9R9XDZw6GuVrVxLgd+
 Em96NEwkQW53ihfU9/vbzajLpzIanVxF7fMIvR21PrJk4SUYT9jIL1qkLZ2YSR0F
 htco+18yl53UQyw20xlol1qrbJFINao9Bj8J7U+WTpzK1Xrxn3ylYCXnbAVBOxAC
@@ -34,14 +34,14 @@ const GET_JSON_FROM_RESPONSE = (response, callback) => {
     try {
       let data = JSON.parse(body);
       callback(null, data);
-    } catch (error) {
+    } catch(error) {
       callback(error);
     }
   });
 };
 
-describe('Elio Integration Test Suite', function () {
-  const port = 8090;
+describe('Elio Routing Test Suite', function () {
+  const port = 8091;
   let elio, f1_digest, f2_digest;
   const signSource = (source) => {
     const sign = crypto.createSign('RSA-SHA256');
@@ -71,54 +71,72 @@ describe('Elio Integration Test Suite', function () {
     expect(elio).to.have.property('listDeployments');
   });
 
-  it('should deploy new function', function (done) {
-    const source = `
+  it('should deploy new functions', function (done) {
+    const s1 = `
       module.exports = (context, callback) => callback(null, {
         result: context.name || "echo"
       });
     `;
-    elio.deploy('test', source, signSource(source), (error, digest) => {
+    const s2 = `
+      module.exports = (context, callback) => callback(null, {
+        result: context.name || "echo",
+        type: 's2'
+      });
+    `;
+    elio.deploy('test', s1, signSource(s1), (error, digest) => {
       expect(error).to.be.null;
-      expect(digest).to.be.equal(signSource(source));
       f1_digest = digest;
-      done();
+      elio.deploy('test', s2, signSource(s2), (error, digest) => {
+        expect(error).to.be.null;
+        f2_digest = digest;
+        expect(elio.listDeployments().map((r) => r[0])).to.have.members([f1_digest, f2_digest]);
+        done();
+      });
     });
   });
 
-  it('should deploy via endpoint', function (done) {
-    const source = `
-      module.exports = (context, callback) => callback(null, {
-        result: context.name || "echo",
-        type: 'HTTP_DEPLOYED'
-      });
-    `;
+  it('should create a route for the function', function () {
+    elio.assignRoute('my_test_function', f1_digest);
+    expect(elio.getRoute('my_test_function')).to.equal(f1_digest);
+    expect(elio.listRoutes()).to.have.deep.members([{
+      route: 'my_test_function',
+      digest: f1_digest
+    }]);
+  });
 
+  it('should create a route through endpoint', function (done) {
     request({
       method: "PUT",
-      headers: {
-        'content-type': 'application/javascript',
-        'x-identity': 'test',
-        'Authorization': signSource(source)
-      },
-      url: `http://localhost:${port}/source/`,
-      body: source
+      url: `http://localhost:${port}/routes/ep_route/${f2_digest}`,
     }, function (error, response, buffer) {
       if (error) throw error;
 
       expect(buffer).to.not.be.undefined;
-      const body = JSON.parse(buffer);
-      expect(response.statusCode).to.be.equal(200);
-      f2_digest = body.digest;
+      expect(elio.getRoute('ep_route')).to.equal(f2_digest);
+      expect(elio.listRoutes()).to.include.deep.members([{
+        route: 'ep_route',
+        digest: f2_digest
+      }]);
       done();
     });
   });
 
-  it('should list function under available deployments', function () {
-    expect(elio.listDeployments().map((r) => r[0])).to.have.members([f1_digest, f2_digest]);
+  it('should delete a route through endpoint', function (done) {
+    request({
+      method: "DELETE",
+      url: `http://localhost:${port}/routes/ep_route/`,
+    }, function (error, response, buffer) {
+      if (error) throw error;
+
+      expect(buffer).to.not.be.undefined;
+      expect(elio.getRoute('ep_route')).to.be.undefined;
+      expect(elio.listRoutes()).to.not.have.members([f2_digest]);
+      done();
+    });
   });
 
-  it('should invoke a function through access point', function (done) {
-    request(`http://localhost:${port}/source/${f1_digest}`).on('response', function (response, body) {
+  it('should invoke a routed function through access point', function (done) {
+    request(`http://localhost:${port}/invoke/my_test_function`).on('response', function (response, body) {
       expect(response.statusCode).to.be.equal(200);
       GET_JSON_FROM_RESPONSE(response, (error, body) => {
         expect(body).to.be.eql({
@@ -131,23 +149,8 @@ describe('Elio Integration Test Suite', function () {
     });
   });
 
-  it('should invoke an HTTP deployed function through access point', function (done) {
-    request(`http://localhost:${port}/source/${f2_digest}`).on('response', function (response, body) {
-      expect(response.statusCode).to.be.equal(200);
-      GET_JSON_FROM_RESPONSE(response, (error, body) => {
-        expect(body).to.be.eql({
-          result: 'echo',
-          type: 'HTTP_DEPLOYED'
-        });
-        done();
-      });
-    }).on('error', function (error) {
-      throw error;
-    });
-  });
-
   it('should invoke a function through local API', function (done) {
-    elio.invoke(f1_digest, { name: 'test' }, (error, response) => {
+    elio.invokeRoute('my_test_function', { name: 'test' }, (error, response) => {
       if (error) throw error;
       expect(response).to.eql({
         result: 'test'
@@ -156,34 +159,30 @@ describe('Elio Integration Test Suite', function () {
     });
   });
 
-  it('should undeploy a function', function (done) {
-    elio.undeploy(f1_digest, function (error) {
-      if (error) throw error;
+  it('should swap a route', function (done) {
+    elio.assignRoute('my_test_function', f2_digest);
 
-      expect(elio.listDeployments().map((r) => r[0])).to.not.have.members([f1_digest]);
+    elio.invokeRoute('my_test_function', { name: 'test' }, (error, response) => {
+      if (error) throw error;
+      expect(response).to.eql({
+        result: 'test',
+        type: 's2'
+      });
       done();
     });
-  });
+  })
 
-  it('should undeploy via endpoint', function (done) {
-    request({
-      method: "DELETE",
-      url: `http://localhost:${port}/source/${f2_digest}`,
-    }, function (error, response, buffer) {
-      if (error) throw error;
+  it('should remove a route', function (done) {
+    elio.removeRoute('my_test_function');
 
-      expect(buffer).to.not.be.undefined;
-      expect(elio.listDeployments().map((r) => r[0])).to.not.have.deep.members([f2_digest, f1_digest]);
-      done();
-    });
-  });
-
-  it('should return correct http code when invoking deleted or unknown digests', function (done) {
-    request(`http://localhost:${port}/source/${f1_digest}`).on('response', function (response, body) {
-      expect(response.statusCode).to.be.equal(404);
-      done();
-    }).on('error', function (error) {
-      throw error;
+    elio.invokeRoute('my_test_function', { name: 'test' }, (error, response) => {
+      expect(error).to.not.be.undefined;
+      request(`http://localhost:${port}/invoke/my_test_function`).on('response', function (response, body) {
+        expect(response.statusCode).to.be.equal(404);
+        done();
+      }).on('error', function (error) {
+        throw error;
+      });
     });
   });
 });
